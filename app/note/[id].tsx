@@ -1,6 +1,6 @@
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, Text } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -29,9 +29,12 @@ export default function NoteEditor() {
         }, [id])
     );
 
+    const router = useRouter();
+
     const handleSaveBtn = async () => {
         try {
             await notesService.updateNote(id, { title, content, imageUris });
+            router.back();
         } catch (e) {
             console.error('Failed to update note', e);
         }

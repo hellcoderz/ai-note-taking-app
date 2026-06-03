@@ -7,6 +7,7 @@ import { colors } from "@/constants/theme";
 import { Message, SpeechToTextModule, WHISPER_TINY_EN } from "react-native-executorch";
 import { AudioManager, AudioRecorder } from "react-native-audio-api";
 import { rag, promptGenerator } from "@/services/ragService";
+import { LoaderScreen } from "@/components/LoaderScreen";
 
 
 const speechToTextModule = new SpeechToTextModule();
@@ -34,6 +35,8 @@ export default function AIAssistant() {
     const [ragIsReady, setRagIsReady] = useState(false);
     const [ragIsGenerating, setRagIsGenerating] = useState(false);
     const [ragResponse, setRagResponse] = useState("");
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [loadingMessage, setLoadingMessage] = useState("Initializing AI Assistant...");
 
     const [isTranscribing, setIsTranscribing] = useState(false);
 
@@ -42,13 +45,16 @@ export default function AIAssistant() {
 
         (async () => {
             try {
+                setLoadingMessage("Loading Whisper Model...");
                 await speechToTextModule.load(WHISPER_TINY_EN, (progress) => {
-                    console.log("Whisper model loading progress:", progress);
+                    setLoadingProgress(progress);
                 });
+                setLoadingMessage("Loading RAG Model...");
                 await rag.load();
                 setRagIsReady(true);
             } catch (e) {
                 console.error('Failed to load AI assistant components', e);
+                setLoadingMessage("Failed to load components");
             }
         })();
 
@@ -120,9 +126,7 @@ export default function AIAssistant() {
 
     if (!ragIsReady) {
         return (
-            <SafeAreaView style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading AI Assistant</Text>
-            </SafeAreaView>
+            <LoaderScreen message={loadingMessage} progress={loadingProgress} />
         );
     }
 
