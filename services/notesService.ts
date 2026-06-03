@@ -8,7 +8,7 @@ import {
     updateNote as storageUpdateNote,
 } from "@/services/storage/notes";
 import { textSplitter, noteToString, textVectorStore } from "@/services/vectorStores/textVectorStore";
-import { imageEmbeddings, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
+import { imageEmbeddings, ocrModule, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
 
 async function addImageToNote(noteId: string, sourceUri: string): Promise<string> {
     const fileName = sourceUri.split("/").pop() ?? "";
@@ -37,9 +37,15 @@ async function createNote(title: string, content: string, imageUris: string[]): 
         await textVectorStore.add({ document: chunk, metadata: { noteId: note.id } });
     }
     for (const uri of imageUris) {
-        if (!imageEmbeddings) continue;
+        if (!imageEmbeddings || !ocrModule) continue;
         const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId: note.id } });
+        
+        const ocrDetections = await ocrModule.forward(uri);
+        const ocrText = ocrDetections.map(d => d.text).join(' ').trim();
+        if (ocrText) {
+            await imageVectorStore.add({ document: ocrText, metadata: { imageUri: uri, noteId: note.id } });
+        }
     }
     return note;
 }
@@ -56,9 +62,15 @@ async function updateNote(noteId: string, data: { title: string; content: string
     }
 
     for (const uri of data.imageUris) {
-        if (!imageEmbeddings) continue;
+        if (!imageEmbeddings || !ocrModule) continue;
         const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId } });
+        
+        const ocrDetections = await ocrModule.forward(uri);
+        const ocrText = ocrDetections.map(d => d.text).join(' ').trim();
+        if (ocrText) {
+            await imageVectorStore.add({ document: ocrText, metadata: { imageUri: uri, noteId } });
+        }
     }
 }
 
@@ -75,10 +87,19 @@ async function searchByText(query: string, notes: Note[], n: number = 3): Promis
 }
 
 async function searchByImageUri(imageUri: string, notes: Note[], n: number = 3): Promise<Note[]> {
-    if (!imageEmbeddings) return [];
+    if (!imageEmbeddings || !ocrModule) return [];
+    
     const imageEmbedding = Array.from(await imageEmbeddings.forward(imageUri)) as number[];
-    const results = await imageVectorStore.query({ queryEmbedding: imageEmbedding });
-    return buildSimilarityResults(results, notes).slice(0, n);
+    let combinedResults = await imageVectorStore.query({ queryEmbedding: imageEmbedding });
+    
+    const ocrDetections = await ocrModule.forward(imageUri);
+    const ocrText = ocrDetections.map(d => d.text).join(' ').trim();
+    if (ocrText) {
+        const textResults = await imageVectorStore.query({ queryText: ocrText });
+        combinedResults = [...combinedResults, ...textResults];
+    }
+    
+    return buildSimilarityResults(combinedResults, notes).slice(0, n);
 }
 
 async function searchImagesByText(query: string, notes: Note[], n: number = 3): Promise<Note[]> {

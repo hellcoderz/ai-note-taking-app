@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { textVectorStore } from "@/services/vectorStores/textVectorStore";
 import Notes from "./notes";
-import { loadImageEmbeddings, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
+import { loadComputerVisionModels, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
 import { LoaderScreen } from "@/components/LoaderScreen";
 
 export default function Index() {
@@ -18,8 +18,8 @@ export default function Index() {
         setLoadingMessage("Loading Image Vector Store...");
         await imageVectorStore.load();
         
-        setLoadingMessage("Loading CLIP Model...");
-        await loadImageEmbeddings((progress: number) => {
+        setLoadingMessage("Loading Vision Models...");
+        await loadComputerVisionModels((progress: number) => {
           setLoadingProgress(progress);
         });
         
