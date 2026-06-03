@@ -1,0 +1,54 @@
+diff --git a/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcher.js b/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcher.js
+index aa91b89..02735b4 100644
+--- a/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcher.js
++++ b/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcher.js
+@@ -22,7 +22,7 @@
+  * - Most functions accept multiple `ResourceSource` arguments (string, number, or object)
+  * - The {@link fetch} method accepts a progress callback (0-1) and returns file paths or throws if interrupted
+  */
+-import { deleteAsync, readDirectoryAsync, readAsStringAsync, moveAsync, } from 'expo-file-system/legacy';
++import { deleteAsync, readDirectoryAsync, readAsStringAsync, moveAsync, } from 'expo-file-system';
+ import { RNEDirectory } from './constants/directories';
+ import { RnExecutorchErrorCode, RnExecutorchError, BaseResourceFetcherClass, } from 'react-native-executorch';
+ import { ResourceFetcherUtils, HTTP_CODE, DownloadStatus, } from './ResourceFetcherUtils';
+diff --git a/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcherUtils.js b/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcherUtils.js
+index 016d29d..31f5619 100644
+--- a/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcherUtils.js
++++ b/node_modules/react-native-executorch-expo-resource-fetcher/lib/ResourceFetcherUtils.js
+@@ -4,7 +4,7 @@ import { Asset } from 'expo-asset';
+ /**
+  * @internal
+  */
+-import { getInfoAsync, makeDirectoryAsync } from 'expo-file-system/legacy';
++import { getInfoAsync, makeDirectoryAsync } from 'expo-file-system';
+ export { HTTP_CODE, DownloadStatus, SourceType };
+ /**
+  * Utility functions for fetching and managing resources.
+diff --git a/node_modules/react-native-executorch-expo-resource-fetcher/lib/constants/directories.js b/node_modules/react-native-executorch-expo-resource-fetcher/lib/constants/directories.js
+index 72467cb..4a6d30f 100644
+--- a/node_modules/react-native-executorch-expo-resource-fetcher/lib/constants/directories.js
++++ b/node_modules/react-native-executorch-expo-resource-fetcher/lib/constants/directories.js
+@@ -1,2 +1,2 @@
+-import { documentDirectory } from 'expo-file-system/legacy';
++import { documentDirectory } from 'expo-file-system';
+ export const RNEDirectory = `${documentDirectory}react-native-executorch/`;
+diff --git a/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.d.ts b/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.d.ts
+index ccdf71e..915d6e4 100644
+--- a/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.d.ts
++++ b/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.d.ts
+@@ -1,4 +1,4 @@
+-import { type DownloadResumable } from 'expo-file-system/legacy';
++import { type DownloadResumable } from 'expo-file-system';
+ import { ResourceSource } from 'react-native-executorch';
+ import { DownloadStatus } from './ResourceFetcherUtils';
+ export interface ActiveDownload {
+diff --git a/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.js b/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.js
+index 54edf7a..16fb139 100644
+--- a/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.js
++++ b/node_modules/react-native-executorch-expo-resource-fetcher/lib/handlers.js
+@@ -1,4 +1,4 @@
+-import { cacheDirectory, copyAsync, createDownloadResumable, moveAsync, FileSystemSessionType, writeAsStringAsync, EncodingType, } from 'expo-file-system/legacy';
++import { cacheDirectory, copyAsync, createDownloadResumable, moveAsync, FileSystemSessionType, writeAsStringAsync, EncodingType, } from 'expo-file-system';
+ import { Asset } from 'expo-asset';
+ import { Platform } from 'react-native';
+ import { RnExecutorchErrorCode, RnExecutorchError, } from 'react-native-executorch';

@@ -4,13 +4,13 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView } from 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { colors } from "@/constants/theme";
-import { Message, SpeechToTextModule, WHISPER_TINY_EN } from "react-native-executorch";
+import { Message, useSpeechToText, WHISPER_TINY_EN } from "react-native-executorch";
 import { AudioManager, AudioRecorder } from "react-native-audio-api";
 import { rag, promptGenerator } from "@/services/ragService";
 import { LoaderScreen } from "@/components/LoaderScreen";
+import { useTTS } from "@/contexts/TTSContext";
+import { useRef } from "react";
 
-
-const speechToTextModule = new SpeechToTextModule();
 
 // React Native Audio API setup
 const recorder = new AudioRecorder({
@@ -23,10 +23,7 @@ AudioManager.setAudioSessionOptions({
     iosOptions: ['allowBluetooth', 'defaultToSpeaker'],
 });
 AudioManager.requestRecordingPermissions();
-recorder.onAudioReady(({ buffer }) => {
-    speechToTextModule.streamInsert(buffer.getChannelData(0));
-});
-
+AudioManager.requestRecordingPermissions();
 
 export default function AIAssistant() {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -39,16 +36,22 @@ export default function AIAssistant() {
     const [loadingMessage, setLoadingMessage] = useState("Initializing AI Assistant...");
 
     const [isTranscribing, setIsTranscribing] = useState(false);
+    const isVoiceInputRef = useRef(false);
+    const transcriptionIdRef = useRef(0);
+    const { isReady: ttsIsReady, play: ttsPlay, stop: ttsStop, isPlaying: ttsIsPlaying, playingText: ttsPlayingText } = useTTS();
+    const { stream, streamInsert, streamStop, isReady: sttIsReady, downloadProgress: sttProgress } = useSpeechToText({ model: WHISPER_TINY_EN });
+
+    useEffect(() => {
+        recorder.onAudioReady(({ buffer }) => {
+            streamInsert(buffer.getChannelData(0));
+        });
+    }, [streamInsert]);
 
     useEffect(() => {
         if (ragIsReady) return;
 
         (async () => {
             try {
-                setLoadingMessage("Loading Whisper Model...");
-                await speechToTextModule.load(WHISPER_TINY_EN, (progress) => {
-                    setLoadingProgress(progress);
-                });
                 setLoadingMessage("Loading RAG Model...");
                 await rag.load();
                 setRagIsReady(true);
@@ -69,6 +72,14 @@ export default function AIAssistant() {
         const trimmed = inputValue.trim();
         if (!trimmed || !ragIsReady || ragIsGenerating) return;
 
+        if (isTranscribing) {
+            recorder.stop();
+            streamStop();
+            setIsTranscribing(false);
+        }
+        
+        transcriptionIdRef.current++; // Invalidate pending transcription updates
+
         const newMessage: Message = { role: "user", content: trimmed };
         const newMessages = [...messages, newMessage];
 
@@ -85,6 +96,7 @@ export default function AIAssistant() {
             setRagIsGenerating(false);
             setRagResponse("");
             setMessages([...newMessages, { role: "assistant", content: response }]);
+            isVoiceInputRef.current = false;
         } catch (e) {
             console.error('Failed to generate response', e);
         }
@@ -100,15 +112,18 @@ export default function AIAssistant() {
     const handleStartTranscribing = async () => {
         if (!ragIsReady || ragIsGenerating || isTranscribing) return;
         setIsTranscribing(true);
+        isVoiceInputRef.current = true;
         setInputValue("");
 
         try {
             recorder.start();
 
+            const currentId = ++transcriptionIdRef.current;
             let committedTranscription = "";
-            for await (const { committed, nonCommitted } of speechToTextModule.stream()) {
-                committedTranscription += committed;
-                setInputValue(committedTranscription + nonCommitted);
+            for await (const { committed, nonCommitted } of stream()) {
+                if (transcriptionIdRef.current !== currentId) break;
+                committedTranscription += committed.text;
+                setInputValue(committedTranscription + nonCommitted.text);
             }
         } catch (e) {
             console.error('Transcription failed', e);
@@ -120,13 +135,13 @@ export default function AIAssistant() {
     const handleStopTranscribing = () => {
         if (!isTranscribing) return;
         recorder.stop();
-        speechToTextModule.streamStop();
+        streamStop();
         setIsTranscribing(false);
     };
 
-    if (!ragIsReady) {
+    if (!ragIsReady || !sttIsReady) {
         return (
-            <LoaderScreen message={loadingMessage} progress={loadingProgress} />
+            <LoaderScreen message={!sttIsReady ? "Loading Whisper Model..." : loadingMessage} progress={!sttIsReady ? sttProgress : loadingProgress} />
         );
     }
 
@@ -144,14 +159,43 @@ export default function AIAssistant() {
                 <ScrollView contentContainerStyle={styles.scrollView}>
                     {extendedMessages.map((msg, index) => (
                         <View key={index} style={[styles.messageBubble, msg.role === "user" ? styles.messageBubbleUser : styles.messageBubbleAssistant]}>
-                            <Text style={styles.messageText}>{msg.content}</Text>
+                            {msg.role === 'assistant' ? (
+                                <View style={styles.assistantMessageContainer}>
+                                    <View style={styles.assistantMessageContent}>
+                                        <Text style={styles.messageText}>{msg.content}</Text>
+                                    </View>
+                                    {msg.content.trim().length > 0 && ttsIsReady && (
+                                        <TouchableOpacity
+                                            style={styles.playButton}
+                                            onPress={() => {
+                                                if (ttsIsPlaying && ttsPlayingText === msg.content) {
+                                                    ttsStop();
+                                                } else {
+                                                    ttsPlay(msg.content);
+                                                }
+                                            }}
+                                        >
+                                            <FontAwesome6
+                                                name={(ttsIsPlaying && ttsPlayingText === msg.content) ? "circle-stop" : "circle-play"}
+                                                size={20}
+                                                color={colors.textPrimary}
+                                            />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            ) : (
+                                <Text style={styles.messageText}>{msg.content}</Text>
+                            )}
                         </View>
                     ))}
                 </ScrollView>
                 <View style={styles.inputBar}>
                     <TextInput
                         value={inputValue}
-                        onChangeText={setInputValue}
+                        onChangeText={(text) => {
+                            setInputValue(text);
+                            isVoiceInputRef.current = false;
+                        }}
                         multiline
                         placeholder="Ask me anything..."
                         placeholderTextColor={colors.textSecondary}
@@ -238,6 +282,18 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
         backgroundColor: colors.surface,
         alignSelf: 'flex-end',
+    },
+    assistantMessageContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+    },
+    assistantMessageContent: {
+        flex: 1,
+    },
+    playButton: {
+        marginLeft: 8,
+        marginTop: 2,
+        padding: 4,
     },
     messageText: {
         fontSize: 16,

@@ -15,6 +15,7 @@ import {
 import { notesService } from "@/services/notesService";
 import type { Note } from "@/types/note";
 import { colors } from "@/constants/theme";
+import { useTTS } from "@/contexts/TTSContext";
 
 enum SearchMode {
     None,
@@ -24,6 +25,7 @@ enum SearchMode {
 
 const NoteList = ({ notes, label, onDeleteNote }: { notes: Note[], label: string, onDeleteNote: (noteId: string) => void }) => {
     const router = useRouter();
+    const { isReady, play, stop, isPlaying, playingText } = useTTS();
 
     return <View style={styles.listContainer}>
         <Text style={styles.listLabel}>{label} ({notes.length})</Text>
@@ -50,11 +52,18 @@ const NoteList = ({ notes, label, onDeleteNote }: { notes: Note[], label: string
                     <Text style={styles.cardTimestamp}>
                         {new Date(item.updatedAt).toLocaleString()}
                     </Text>
-                    {item.similarity && (
-                        <Text style={styles.cardSimilarity}>
-                            {item.similarity.toFixed(2)}
-                        </Text>
-                    )}
+                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                        {item.similarity && (
+                            <Text style={styles.cardSimilarity}>
+                                {item.similarity.toFixed(2)}
+                            </Text>
+                        )}
+                        {item.content.length > 0 && isReady && (
+                            <TouchableOpacity onPress={() => isPlaying && playingText === item.content ? stop() : play(item.content)}>
+                                <FontAwesome6 name={isPlaying && playingText === item.content ? "stop" : "play"} size={14} color={colors.textPrimary} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             </TouchableOpacity>
         )))}

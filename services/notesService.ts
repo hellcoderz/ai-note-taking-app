@@ -37,7 +37,8 @@ async function createNote(title: string, content: string, imageUris: string[]): 
         await textVectorStore.add({ document: chunk, metadata: { noteId: note.id } });
     }
     for (const uri of imageUris) {
-        const embedding = Array.from(await imageEmbeddings.forward(uri));
+        if (!imageEmbeddings) continue;
+        const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId: note.id } });
     }
     return note;
@@ -55,7 +56,8 @@ async function updateNote(noteId: string, data: { title: string; content: string
     }
 
     for (const uri of data.imageUris) {
-        const embedding = Array.from(await imageEmbeddings.forward(uri));
+        if (!imageEmbeddings) continue;
+        const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId } });
     }
 }
@@ -73,7 +75,8 @@ async function searchByText(query: string, notes: Note[], n: number = 3): Promis
 }
 
 async function searchByImageUri(imageUri: string, notes: Note[], n: number = 3): Promise<Note[]> {
-    const imageEmbedding = Array.from(await imageEmbeddings.forward(imageUri));
+    if (!imageEmbeddings) return [];
+    const imageEmbedding = Array.from(await imageEmbeddings.forward(imageUri)) as number[];
     const results = await imageVectorStore.query({ queryEmbedding: imageEmbedding });
     return buildSimilarityResults(results, notes).slice(0, n);
 }

@@ -10,7 +10,7 @@ interface LoaderScreenProps {
 export function LoaderScreen({ message = "Loading...", progress }: LoaderScreenProps) {
     return (
         <View style={styles.container}>
-            <ActivityIndicator size="large" color={colors.primary || '#007AFF'} />
+            <ActivityIndicator size="large" color={'#007AFF'} />
             <Text style={styles.message}>{message}</Text>
             {progress !== undefined && (
                 <View style={styles.progressContainer}>
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     },
     progressBarFill: {
         height: '100%',
-        backgroundColor: colors.primary || '#007AFF',
+        backgroundColor: '#007AFF',
     },
     progressText: {
         color: colors.textSecondary,

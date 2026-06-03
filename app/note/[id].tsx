@@ -6,6 +6,7 @@ import { Alert, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { notesService } from "@/services/notesService";
 import { colors } from "@/constants/theme";
+import { useTTS } from "@/contexts/TTSContext";
 
 export default function NoteEditor() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,6 +14,8 @@ export default function NoteEditor() {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [imageUris, setImageUris] = useState<string[]>([]);
+    
+    const { isReady, play, stop, isPlaying } = useTTS();
 
     useFocusEffect(
         useCallback(() => {
@@ -84,9 +87,16 @@ export default function NoteEditor() {
         <>
             <Stack.Screen options={{
                 headerRight: () => (
-                    <TouchableOpacity onPress={handleSaveBtn}>
-                        <Text style={styles.saveButton}>Save</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                        {content.length > 0 && isReady && (
+                            <TouchableOpacity onPress={() => isPlaying ? stop() : play(content)}>
+                                <FontAwesome6 name={isPlaying ? "stop" : "play"} size={16} color={colors.textPrimary} />
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={handleSaveBtn}>
+                            <Text style={styles.saveButton}>Save</Text>
+                        </TouchableOpacity>
+                    </View>
                 ),
             }} />
             <KeyboardAvoidingView

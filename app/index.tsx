@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { textVectorStore } from "@/services/vectorStores/textVectorStore";
 import Notes from "./notes";
-import { imageEmbeddings, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
-import { CLIP_VIT_BASE_PATCH32_IMAGE } from "react-native-executorch";
+import { loadImageEmbeddings, imageVectorStore } from "@/services/vectorStores/imageVectorStore";
 import { LoaderScreen } from "@/components/LoaderScreen";
 
 export default function Index() {
@@ -20,7 +19,7 @@ export default function Index() {
         await imageVectorStore.load();
         
         setLoadingMessage("Loading CLIP Model...");
-        await imageEmbeddings.load(CLIP_VIT_BASE_PATCH32_IMAGE, (progress) => {
+        await loadImageEmbeddings((progress: number) => {
           setLoadingProgress(progress);
         });
         
