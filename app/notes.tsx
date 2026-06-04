@@ -16,6 +16,8 @@ import { notesService } from "@/services/notesService";
 import type { Note } from "@/types/note";
 import { colors } from "@/constants/theme";
 import { useTTS } from "@/contexts/TTSContext";
+import { noteProcessingStore, ProcessingStatus } from "@/services/noteProcessingStore";
+import { useEffect } from "react";
 
 enum SearchMode {
     None,
@@ -23,7 +25,7 @@ enum SearchMode {
     Image,
 }
 
-const NoteList = ({ notes, label, onDeleteNote }: { notes: Note[], label: string, onDeleteNote: (noteId: string) => void }) => {
+const NoteList = ({ notes, label, onDeleteNote, statuses }: { notes: Note[], label: string, onDeleteNote: (noteId: string) => void, statuses: Record<string, ProcessingStatus> }) => {
     const router = useRouter();
     const { isReady, play, stop, isPlaying, playingText } = useTTS();
 
@@ -48,6 +50,20 @@ const NoteList = ({ notes, label, onDeleteNote }: { notes: Note[], label: string
                     </View>
                 )}
                 <Text numberOfLines={1} style={styles.cardContent}>{item.content}</Text>
+                
+                {statuses[item.id]?.isProcessing && (
+                    <View style={styles.processingRow}>
+                        <FontAwesome6 name="spinner" size={12} color={colors.textSecondary} />
+                        <Text style={styles.processingText}>{statuses[item.id].step || 'Processing...'}</Text>
+                    </View>
+                )}
+                {!statuses[item.id]?.isProcessing && (
+                    <View style={styles.processingRow}>
+                        <FontAwesome6 name="check-circle" size={12} color="green" />
+                        <Text style={styles.processingText}>Processing complete</Text>
+                    </View>
+                )}
+
                 <View style={styles.cardFooter}>
                     <Text style={styles.cardTimestamp}>
                         {new Date(item.updatedAt).toLocaleString()}
@@ -78,6 +94,15 @@ export default function Notes() {
     const [imageSearchNotes, setImageSearchNotes] = useState<Note[]>([]);
 
     const [searchMode, setSearchMode] = useState<SearchMode>(SearchMode.None);
+    const [statuses, setStatuses] = useState<Record<string, ProcessingStatus>>({});
+
+    useEffect(() => {
+        setStatuses(noteProcessingStore.getStatuses());
+        const unsubscribe = noteProcessingStore.subscribe(newStatuses => {
+            setStatuses(newStatuses);
+        });
+        return unsubscribe;
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
@@ -174,17 +199,21 @@ export default function Notes() {
         router.push("/ai-assistant");
     };
 
+    const handleLogs = () => {
+        router.push("/logs");
+    };
+
     const scrollViewContent = () => {
         switch (searchMode) {
             case SearchMode.Text:
                 return <>
-                    <NoteList notes={textSearchNotes} label="Text to Text Search Results (Top 3)" onDeleteNote={handleDeleteNote} />
-                    <NoteList notes={imageSearchNotes} label="Text to Image Search Results (Top 3)" onDeleteNote={handleDeleteNote} />
+                    <NoteList notes={textSearchNotes} label="Text to Text Search Results (Top 3)" onDeleteNote={handleDeleteNote} statuses={statuses} />
+                    <NoteList notes={imageSearchNotes} label="Text to Image Search Results (Top 3)" onDeleteNote={handleDeleteNote} statuses={statuses} />
                 </>
             case SearchMode.None:
-                return <NoteList notes={notes} label="All Notes" onDeleteNote={handleDeleteNote} />
+                return <NoteList notes={notes} label="All Notes" onDeleteNote={handleDeleteNote} statuses={statuses} />
             case SearchMode.Image:
-                return <NoteList notes={imageSearchNotes} label="Image to Image Search Results (Top 3)" onDeleteNote={handleDeleteNote} />
+                return <NoteList notes={imageSearchNotes} label="Image to Image Search Results (Top 3)" onDeleteNote={handleDeleteNote} statuses={statuses} />
             default:
                 return null;
         }
@@ -207,6 +236,9 @@ export default function Notes() {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAIAssistant} style={styles.imageButton}>
                     <FontAwesome6 name="wand-magic-sparkles" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleLogs} style={styles.imageButton}>
+                    <FontAwesome6 name="list-alt" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.scrollView}>
@@ -273,6 +305,17 @@ const styles = StyleSheet.create({
     },
     cardContent: {
         color: colors.textSecondary,
+    },
+    processingRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 4,
+    },
+    processingText: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontStyle: "italic",
     },
     cardImageRow: {
         flexDirection: "row",

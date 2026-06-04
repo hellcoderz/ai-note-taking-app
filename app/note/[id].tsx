@@ -16,9 +16,6 @@ export default function NoteEditor() {
     const [content, setContent] = useState("");
     const [imageUris, setImageUris] = useState<string[]>([]);
     
-    const [isSaving, setIsSaving] = useState(false);
-    const [saveProgress, setSaveProgress] = useState("");
-    
     const { isReady, play, stop, isPlaying } = useTTS();
 
     useFocusEffect(
@@ -39,15 +36,11 @@ export default function NoteEditor() {
     const router = useRouter();
 
     const handleSaveBtn = async () => {
-        if (isSaving) return;
         try {
-            setIsSaving(true);
-            setSaveProgress("Starting save...");
-            await notesService.updateNote(id, { title, content, imageUris }, (step) => setSaveProgress(step));
+            await notesService.updateNote(id, { title, content, imageUris });
             router.back();
         } catch (e) {
             console.error('Failed to update note', e);
-            setIsSaving(false);
         }
     };
 
@@ -96,25 +89,22 @@ export default function NoteEditor() {
             <Stack.Screen options={{
                 headerRight: () => (
                     <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-                        {content.length > 0 && isReady && !isSaving && (
+                        {content.length > 0 && isReady && (
                             <TouchableOpacity onPress={() => isPlaying ? stop() : play(content)}>
                                 <FontAwesome6 name={isPlaying ? "stop" : "play"} size={16} color={colors.textPrimary} />
                             </TouchableOpacity>
                         )}
-                        <TouchableOpacity onPress={handleSaveBtn} disabled={isSaving}>
-                            <Text style={[styles.saveButton, isSaving && { opacity: 0.5 }]}>Save</Text>
+                        <TouchableOpacity onPress={handleSaveBtn}>
+                            <Text style={styles.saveButton}>Save</Text>
                         </TouchableOpacity>
                     </View>
                 ),
             }} />
-            {isSaving ? (
-                <LoaderScreen message={saveProgress} />
-            ) : (
-                <KeyboardAvoidingView
-                    style={styles.keyboardAvoidingView}
-                    behavior="padding"
-                    keyboardVerticalOffset={100}
-                >
+            <KeyboardAvoidingView
+                style={styles.keyboardAvoidingView}
+                behavior="padding"
+                keyboardVerticalOffset={100}
+            >
                 <TextInput
                     value={title}
                     onChangeText={setTitle}
@@ -146,7 +136,6 @@ export default function NoteEditor() {
                     placeholderTextColor={colors.textSecondary}
                 />
             </KeyboardAvoidingView>
-            )}
         </>
     );
 }
