@@ -96,7 +96,7 @@ export default function AIAssistant() {
         try {
             const response = await rag.generate({
                 input: newMessages,
-                nResults: 1,
+                nResults: 5,
                 callback: (token) => { setRagResponse((prev) => prev + token) },
                 promptGenerator: getPromptGenerator(isThinkingEnabled, isQwen3),
             });

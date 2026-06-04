@@ -283,6 +283,7 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         gap: 16,
+        paddingBottom: 100,
     },
     listContainer: {
         gap: 4,
