@@ -6,10 +6,12 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { colors } from "@/constants/theme";
 import { Message, useSpeechToText, WHISPER_TINY_EN } from "react-native-executorch";
 import { AudioManager, AudioRecorder } from "react-native-audio-api";
-import { rag, promptGenerator } from "@/services/ragService";
+import { rag, getPromptGenerator } from "@/services/ragService";
 import { LoaderScreen } from "@/components/LoaderScreen";
 import { useTTS } from "@/contexts/TTSContext";
 import { useRef } from "react";
+import Markdown from "react-native-markdown-display";
+import { Switch } from "react-native";
 
 
 // React Native Audio API setup
@@ -28,6 +30,9 @@ AudioManager.requestRecordingPermissions();
 export default function AIAssistant() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
+    const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
+    // Hardcoded for now as we don't have a model selector
+    const isQwen3 = false;
 
     const [ragIsReady, setRagIsReady] = useState(false);
     const [ragIsGenerating, setRagIsGenerating] = useState(false);
@@ -38,6 +43,7 @@ export default function AIAssistant() {
     const [isTranscribing, setIsTranscribing] = useState(false);
     const isVoiceInputRef = useRef(false);
     const transcriptionIdRef = useRef(0);
+    const scrollViewRef = useRef<ScrollView>(null);
     const { isReady: ttsIsReady, play: ttsPlay, stop: ttsStop, isPlaying: ttsIsPlaying, playingText: ttsPlayingText } = useTTS();
     const { stream, streamInsert, streamStop, isReady: sttIsReady, downloadProgress: sttProgress } = useSpeechToText({ model: WHISPER_TINY_EN });
 
@@ -91,7 +97,7 @@ export default function AIAssistant() {
                 input: newMessages,
                 nResults: 1,
                 callback: (token) => { setRagResponse((prev) => prev + token) },
-                promptGenerator,
+                promptGenerator: getPromptGenerator(isThinkingEnabled, isQwen3),
             });
             setRagIsGenerating(false);
             setRagResponse("");
@@ -156,37 +162,20 @@ export default function AIAssistant() {
                 behavior="padding"
                 keyboardVerticalOffset={140}
             >
-                <ScrollView contentContainerStyle={styles.scrollView}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>AI Assistant</Text>
+                    <View style={styles.toggleContainer}>
+                        <Text style={styles.toggleLabel}>Thinking</Text>
+                        <Switch value={isThinkingEnabled} onValueChange={setIsThinkingEnabled} />
+                    </View>
+                </View>
+                <ScrollView 
+                    ref={scrollViewRef}
+                    contentContainerStyle={styles.scrollView}
+                    onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+                >
                     {extendedMessages.map((msg, index) => (
-                        <View key={index} style={[styles.messageBubble, msg.role === "user" ? styles.messageBubbleUser : styles.messageBubbleAssistant]}>
-                            {msg.role === 'assistant' ? (
-                                <View style={styles.assistantMessageContainer}>
-                                    <View style={styles.assistantMessageContent}>
-                                        <Text style={styles.messageText}>{msg.content}</Text>
-                                    </View>
-                                    {msg.content.trim().length > 0 && ttsIsReady && (
-                                        <TouchableOpacity
-                                            style={styles.playButton}
-                                            onPress={() => {
-                                                if (ttsIsPlaying && ttsPlayingText === msg.content) {
-                                                    ttsStop();
-                                                } else {
-                                                    ttsPlay(msg.content);
-                                                }
-                                            }}
-                                        >
-                                            <FontAwesome6
-                                                name={(ttsIsPlaying && ttsPlayingText === msg.content) ? "circle-stop" : "circle-play"}
-                                                size={20}
-                                                color={colors.textPrimary}
-                                            />
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            ) : (
-                                <Text style={styles.messageText}>{msg.content}</Text>
-                            )}
-                        </View>
+                        <MessageBubble key={index} msg={msg} />
                     ))}
                 </ScrollView>
                 <View style={styles.inputBar}>
@@ -298,4 +287,118 @@ const styles = StyleSheet.create({
     messageText: {
         fontSize: 16,
     },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingBottom: 12,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: colors.textPrimary,
+    },
+    toggleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    toggleLabel: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+    thinkingCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 8,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.primary,
+    },
+    thinkingHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    thinkingTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: colors.textSecondary,
+    },
+    thinkingContent: {
+        marginTop: 8,
+        fontSize: 14,
+        color: colors.textSecondary,
+        fontStyle: 'italic',
+    }
 });
+
+function MessageBubble({ msg }: { msg: Message }) {
+    const { isReady: ttsIsReady, play: ttsPlay, stop: ttsStop, isPlaying: ttsIsPlaying, playingText: ttsPlayingText } = useTTS();
+    const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+
+    let thinking = "";
+    let rest = msg.content;
+    
+    if (msg.role === 'assistant') {
+        const thinkStart = msg.content.indexOf("<think>");
+        if (thinkStart !== -1) {
+            const thinkEnd = msg.content.indexOf("</think>");
+            if (thinkEnd !== -1) {
+                thinking = msg.content.substring(thinkStart + 7, thinkEnd).trim();
+                rest = (msg.content.substring(0, thinkStart) + msg.content.substring(thinkEnd + 8)).trim();
+            } else {
+                thinking = msg.content.substring(thinkStart + 7).trim();
+                rest = msg.content.substring(0, thinkStart).trim();
+            }
+        }
+    }
+
+    return (
+        <View style={[styles.messageBubble, msg.role === "user" ? styles.messageBubbleUser : styles.messageBubbleAssistant]}>
+            {msg.role === 'assistant' ? (
+                <View style={styles.assistantMessageContainer}>
+                    <View style={styles.assistantMessageContent}>
+                        {thinking.length > 0 && (
+                            <View style={styles.thinkingCard}>
+                                <TouchableOpacity style={styles.thinkingHeader} onPress={() => setIsThinkingExpanded(!isThinkingExpanded)}>
+                                    <FontAwesome6 name={isThinkingExpanded ? "chevron-down" : "chevron-right"} size={12} color={colors.textSecondary} />
+                                    <Text style={styles.thinkingTitle}>Thinking Process</Text>
+                                </TouchableOpacity>
+                                {isThinkingExpanded && (
+                                    <Text style={styles.thinkingContent}>{thinking}</Text>
+                                )}
+                            </View>
+                        )}
+                        {rest.length > 0 && (
+                            <Markdown style={{ body: { color: colors.textPrimary, fontSize: 16 } }}>
+                                {rest}
+                            </Markdown>
+                        )}
+                    </View>
+                    {msg.content.trim().length > 0 && ttsIsReady && (
+                        <TouchableOpacity
+                            style={styles.playButton}
+                            onPress={() => {
+                                if (ttsIsPlaying && ttsPlayingText === msg.content) {
+                                    ttsStop();
+                                } else {
+                                    ttsPlay(msg.content);
+                                }
+                            }}
+                        >
+                            <FontAwesome6
+                                name={(ttsIsPlaying && ttsPlayingText === msg.content) ? "circle-stop" : "circle-play"}
+                                size={20}
+                                color={colors.textPrimary}
+                            />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            ) : (
+                <Text style={styles.messageText}>{msg.content}</Text>
+            )}
+        </View>
+    );
+}

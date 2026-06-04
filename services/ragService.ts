@@ -20,7 +20,7 @@ export const similarityScoreToDescription = (similarityScore: number) => {
     return "Not relevant";
 }
 
-export const promptGenerator = (messages: Message[], retrieved: QueryResult[]) => {
+export const getPromptGenerator = (isThinkingEnabled: boolean, isQwen3: boolean) => (messages: Message[], retrieved: QueryResult[]) => {
     const userQuestion = messages[messages.length - 1].content;
     
     logger.log("AI Assistant: Received query", { userQuestion });
@@ -47,8 +47,18 @@ User's Question:
 ${userQuestion}
 
 Answer:`
+    
+    // Default: if thinking is OFF, we add /no_think to stop it from thinking.
+    // However, if the user requested Qwen3 and thinking is OFF, we remove /no_think (as per prompt instructions, maybe unsupported).
+    // If thinking is ON, we don't append /no_think.
+    let suffix = "";
+    if (!isThinkingEnabled) {
+        suffix = isQwen3 ? "" : "/no_think";
+    }
 
-    logger.log("AI Assistant: Final prompt sent to LLM", { prompt });
+    const finalPrompt = prompt + suffix;
 
-    return prompt;
+    logger.log("AI Assistant: Final prompt sent to LLM", { prompt: finalPrompt });
+
+    return finalPrompt;
 }
