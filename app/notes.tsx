@@ -12,6 +12,7 @@ import {
     View,
     ScrollView
 } from "react-native";
+import * as Crypto from "expo-crypto";
 import { notesService } from "@/services/notesService";
 import type { Note } from "@/types/note";
 import { colors } from "@/constants/theme";
@@ -164,13 +165,9 @@ export default function Notes() {
         setSearchMode(SearchMode.None);
     }
 
-    const handleAddNote = async () => {
-        try {
-            const note = await notesService.createNote("", "", []);
-            router.push({ pathname: "/note/[id]", params: { id: note.id } });
-        } catch (e) {
-            console.error('Failed to add note', e);
-        }
+    const handleAddNote = () => {
+        const newId = Crypto.randomUUID();
+        router.push({ pathname: "/note/[id]", params: { id: newId, isNew: "true" } });
     };
 
     const handleDeleteNote = (noteId: string) => {
@@ -273,6 +270,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12,
         backgroundColor: colors.surface,
+        color: "black",
     },
     imageButton: {
         borderRadius: 12,

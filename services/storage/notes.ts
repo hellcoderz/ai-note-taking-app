@@ -22,9 +22,9 @@ export async function getNoteById(noteId: string): Promise<Note> {
     return note;
 }
 
-export async function createNote(data: { title: string; content: string; imageUris: string[] }): Promise<Note> {
+export async function createNote(data: { id?: string; title: string; content: string; imageUris: string[] }): Promise<Note> {
     const note: Note = {
-        id: Crypto.randomUUID(),
+        id: data.id || Crypto.randomUUID(),
         title: data.title.trim(),
         content: data.content,
         imageUris: data.imageUris,

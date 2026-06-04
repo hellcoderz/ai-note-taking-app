@@ -32,9 +32,9 @@ async function getNote(noteId: string): Promise<Note> {
     return storageGetNoteById(noteId);
 }
 
-async function createNote(title: string, content: string, imageUris: string[]): Promise<Note> {
+async function createNote(title: string, content: string, imageUris: string[], id?: string): Promise<Note> {
     logger.log("Creating new note", { title, imageCount: imageUris.length });
-    const note = await storageCreateNote({ title, content, imageUris });
+    const note = await storageCreateNote({ id, title, content, imageUris });
     
     // Fire and forget background processing
     processNoteBackground(note.id, { title, content, imageUris });

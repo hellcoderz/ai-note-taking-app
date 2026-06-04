@@ -10,7 +10,7 @@ import { useTTS } from "@/contexts/TTSContext";
 import { LoaderScreen } from "@/components/LoaderScreen";
 
 export default function NoteEditor() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, isNew } = useLocalSearchParams<{ id: string; isNew?: string }>();
 
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
@@ -20,6 +20,7 @@ export default function NoteEditor() {
 
     useFocusEffect(
         useCallback(() => {
+            if (isNew === "true") return;
             (async () => {
                 try {
                     const note = await notesService.getNote(id);
@@ -37,7 +38,11 @@ export default function NoteEditor() {
 
     const handleSaveBtn = async () => {
         try {
-            await notesService.updateNote(id, { title, content, imageUris });
+            if (isNew === "true") {
+                await notesService.createNote(title, content, imageUris, id);
+            } else {
+                await notesService.updateNote(id, { title, content, imageUris });
+            }
             router.back();
         } catch (e) {
             console.error('Failed to update note', e);
