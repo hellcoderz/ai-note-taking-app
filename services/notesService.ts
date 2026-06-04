@@ -30,14 +30,21 @@ async function getNote(noteId: string): Promise<Note> {
     return storageGetNoteById(noteId);
 }
 
-async function createNote(title: string, content: string, imageUris: string[]): Promise<Note> {
+async function createNote(title: string, content: string, imageUris: string[], onProgress?: (step: string) => void): Promise<Note> {
+    onProgress?.("Saving note to storage...");
     const note = await storageCreateNote({ title, content, imageUris });
+    
+    onProgress?.("Generating text embeddings...");
     const chunks = await textSplitter.splitText(noteToString(note));
     for (const chunk of chunks) {
         await textVectorStore.add({ document: chunk, metadata: { noteId: note.id } });
     }
-    for (const uri of imageUris) {
+    
+    for (let i = 0; i < imageUris.length; i++) {
+        const uri = imageUris[i];
         if (!imageEmbeddings || !ocrModule) continue;
+        
+        onProgress?.(`Processing image ${i + 1} of ${imageUris.length}...`);
         const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId: note.id } });
         
@@ -47,22 +54,29 @@ async function createNote(title: string, content: string, imageUris: string[]): 
             await imageVectorStore.add({ document: ocrText, metadata: { imageUri: uri, noteId: note.id } });
         }
     }
+    onProgress?.("Note saved successfully.");
     return note;
 }
 
-async function updateNote(noteId: string, data: { title: string; content: string; imageUris: string[] }): Promise<void> {
+async function updateNote(noteId: string, data: { title: string; content: string; imageUris: string[] }, onProgress?: (step: string) => void): Promise<void> {
+    onProgress?.("Updating note in storage...");
     await storageUpdateNote(noteId, data);
 
+    onProgress?.("Removing old embeddings...");
     await textVectorStore.delete({ predicate: r => r.metadata?.noteId === noteId });
     await imageVectorStore.delete({ predicate: r => r.metadata?.noteId === noteId });
 
+    onProgress?.("Generating text embeddings...");
     const chunks = await textSplitter.splitText(noteToString(data));
     for (const chunk of chunks) {
         await textVectorStore.add({ document: chunk, metadata: { noteId } });
     }
 
-    for (const uri of data.imageUris) {
+    for (let i = 0; i < data.imageUris.length; i++) {
+        const uri = data.imageUris[i];
         if (!imageEmbeddings || !ocrModule) continue;
+        
+        onProgress?.(`Processing image ${i + 1} of ${data.imageUris.length}...`);
         const embedding = Array.from(await imageEmbeddings.forward(uri)) as number[];
         await imageVectorStore.add({ embedding, metadata: { imageUri: uri, noteId } });
         
@@ -72,6 +86,8 @@ async function updateNote(noteId: string, data: { title: string; content: string
             await imageVectorStore.add({ document: ocrText, metadata: { imageUri: uri, noteId } });
         }
     }
+    
+    onProgress?.("Note updated successfully.");
 }
 
 async function deleteNote(noteId: string): Promise<void> {
