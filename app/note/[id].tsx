@@ -8,6 +8,16 @@ import { notesService } from "@/services/notesService";
 import { colors } from "@/constants/theme";
 import { useTTS } from "@/contexts/TTSContext";
 import { LoaderScreen } from "@/components/LoaderScreen";
+import { useSpeechToText, WHISPER_TINY_EN } from "react-native-executorch";
+import { AudioManager, AudioRecorder, decodeAudioData } from "react-native-audio-api";
+import * as DocumentPicker from "expo-document-picker";
+import { useRef, useEffect } from "react";
+
+const recorder = new AudioRecorder({
+    sampleRate: 16000,
+    bufferLengthInSamples: 1600,
+});
+AudioManager.requestRecordingPermissions();
 
 export default function NoteEditor() {
     const { id, isNew } = useLocalSearchParams<{ id: string; isNew?: string }>();
@@ -16,7 +26,17 @@ export default function NoteEditor() {
     const [content, setContent] = useState("");
     const [imageUris, setImageUris] = useState<string[]>([]);
     
-    const { isReady, play, stop, isPlaying } = useTTS();
+    const { isReady: ttsIsReady, play: ttsPlay, stop: ttsStop, isPlaying: ttsIsPlaying } = useTTS();
+
+    const { stream, streamInsert, streamStop, transcribe, isReady: sttIsReady } = useSpeechToText({ model: WHISPER_TINY_EN });
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const transcriptionIdRef = useRef(0);
+
+    useEffect(() => {
+        recorder.onAudioReady(({ buffer }) => {
+            streamInsert(buffer.getChannelData(0));
+        });
+    }, [streamInsert]);
 
     useFocusEffect(
         useCallback(() => {
@@ -89,14 +109,67 @@ export default function NoteEditor() {
         );
     };
 
+    const handleStartTranscribing = async () => {
+        if (!sttIsReady || isTranscribing) return;
+        setIsTranscribing(true);
+        try {
+            recorder.start();
+            const currentId = ++transcriptionIdRef.current;
+            let currentTranscription = "";
+            const initialContent = content; // We want to append to the existing content
+            
+            for await (const { committed, nonCommitted } of stream()) {
+                if (transcriptionIdRef.current !== currentId) break;
+                currentTranscription = committed.text + nonCommitted.text;
+                setContent(initialContent + (initialContent.length > 0 ? " " : "") + currentTranscription);
+            }
+        } catch (e) {
+            console.error('Transcription failed', e);
+        }
+        setIsTranscribing(false);
+    };
+
+    const handleStopTranscribing = () => {
+        if (!isTranscribing) return;
+        recorder.stop();
+        streamStop();
+        setIsTranscribing(false);
+    };
+
+    const handleUploadAudio = async () => {
+        if (!sttIsReady) {
+            Alert.alert("Error", "Speech-to-text model is not ready yet.");
+            return;
+        }
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'audio/*',
+            });
+            if (result.canceled || !result.assets || result.assets.length === 0) return;
+            
+            const uri = result.assets[0].uri;
+            // Decode audio to Float32Array at 16kHz
+            const audioBuffer = await decodeAudioData(uri, 16000);
+            const float32Array = audioBuffer.getChannelData(0);
+            
+            const transcriptionResult = await transcribe(float32Array);
+            
+            // Append transcribed text
+            setContent(prev => prev + (prev.length > 0 ? " " : "") + transcriptionResult.text);
+        } catch (e) {
+            console.error('Failed to transcribe uploaded audio', e);
+            Alert.alert("Transcription Error", "Failed to transcribe the audio file.");
+        }
+    };
+
     return (
         <>
             <Stack.Screen options={{
                 headerRight: () => (
                     <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-                        {content.length > 0 && isReady && (
-                            <TouchableOpacity onPress={() => isPlaying ? stop() : play(content)}>
-                                <FontAwesome6 name={isPlaying ? "stop" : "play"} size={16} color={colors.textPrimary} />
+                        {content.length > 0 && ttsIsReady && (
+                            <TouchableOpacity onPress={() => ttsIsPlaying ? ttsStop() : ttsPlay(content)}>
+                                <FontAwesome6 name={ttsIsPlaying ? "stop" : "play"} size={16} color={colors.textPrimary} />
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity onPress={handleSaveBtn}>
@@ -130,6 +203,18 @@ export default function NoteEditor() {
                         <TouchableOpacity onPress={handleAddImages} style={styles.addThumb} accessibilityRole="button" accessibilityLabel="Add image">
                             <FontAwesome6 name="plus" size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
+                        <TouchableOpacity onPress={handleUploadAudio} style={styles.addThumb} accessibilityRole="button" accessibilityLabel="Upload audio">
+                            <FontAwesome6 name="file-audio" size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                        {isTranscribing ? (
+                            <TouchableOpacity onPress={handleStopTranscribing} style={styles.addThumb} accessibilityRole="button" accessibilityLabel="Stop recording">
+                                <FontAwesome6 name="circle-stop" size={20} color="red" />
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity onPress={handleStartTranscribing} style={styles.addThumb} accessibilityRole="button" accessibilityLabel="Record voice">
+                                <FontAwesome6 name="microphone" size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        )}
                     </ScrollView>
                 </View>
                 <TextInput
