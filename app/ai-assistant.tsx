@@ -12,6 +12,7 @@ import { useTTS } from "@/contexts/TTSContext";
 import { useRef } from "react";
 import Markdown from "react-native-markdown-display";
 import { Switch } from "react-native";
+import { Stack } from "expo-router";
 
 
 // React Native Audio API setup
@@ -151,24 +152,25 @@ export default function AIAssistant() {
         );
     }
 
-    const extendedMessages = ragIsGenerating
+    const extendedMessages: Message[] = ragIsGenerating
         ? [...messages, { role: "assistant", content: ragResponse }]
         : messages;
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+            <Stack.Screen options={{
+                headerRight: () => (
+                    <View style={styles.toggleContainer}>
+                        <Text style={styles.toggleLabel}>Thinking</Text>
+                        <Switch value={isThinkingEnabled} onValueChange={setIsThinkingEnabled} />
+                    </View>
+                )
+            }} />
             <KeyboardAvoidingView
                 style={styles.keyboardAvoidingView}
                 behavior="padding"
                 keyboardVerticalOffset={140}
             >
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>AI Assistant</Text>
-                    <View style={styles.toggleContainer}>
-                        <Text style={styles.toggleLabel}>Thinking</Text>
-                        <Switch value={isThinkingEnabled} onValueChange={setIsThinkingEnabled} />
-                    </View>
-                </View>
                 <ScrollView 
                     ref={scrollViewRef}
                     contentContainerStyle={styles.scrollView}
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
         padding: 8,
         marginBottom: 8,
         borderLeftWidth: 4,
-        borderLeftColor: colors.primary,
+        borderLeftColor: colors.fabBackground,
     },
     thinkingHeader: {
         flexDirection: 'row',
