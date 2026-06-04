@@ -78,6 +78,7 @@ async function processNoteBackground(noteId: string, data: { title: string; cont
             
             if (ocrText) {
                 await imageVectorStore.add({ document: ocrText, metadata: { imageUri: uri, noteId } });
+                await textVectorStore.add({ document: `[Image OCR]: ${ocrText}`, metadata: { imageUri: uri, noteId } });
             }
         }
     } catch (e) {
